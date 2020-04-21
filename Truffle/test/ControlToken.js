@@ -3,88 +3,97 @@ let ControlToken = artifacts.require("./ControlToken.sol");
 contract('ControlToken', async function (accounts) {
     let tokenInstance;
 
-    it('initializes the contract with the correct values', function () {
-        return ControlToken.deployed().then(function (instance) {
-            tokenInstance = instance;
-            return tokenInstance.name();
-        }).then(function (name) {
-            assert.equal(name, 'ControlToken', 'Name is correct');
-            return tokenInstance.symbol();
-        }).then(function (symbol) {
-            assert.equal(symbol, 'CONT', 'Symbol is correct');
+    // Deploy a new contract before each test
+    beforeEach(async () => {
+        tokenInstance = await ControlToken.new({from: accounts[0]});
+    });
+
+    it('initializes the contract with the correct values', async function () {
+        await tokenInstance.name()
+            .then(function (name) {
+                assert.equal(name, 'ControlToken', 'Name is correct');
+                return tokenInstance.symbol();
+            }).then(function (symbol) {
+                assert.equal(symbol, 'CONT', 'Symbol is correct');
+            });
+    });
+
+    it('Get Token and reset work as they should', async function () {
+        await tokenInstance.getTokens({from: accounts[1]}).catch(function (err) {
+            assert.equal(err, null, "Account should be able to get tokens")
+        });
+
+        let b = await tokenInstance.balanceOf(accounts[1]);
+        await assert.equal(b.toNumber(), 200, "Should get 200 Tokens");
+
+        await tokenInstance.getTokens({from: accounts[1]}).catch(function (err) {
+            assert.notEqual(err, null, "Trying to get Tokens twice is not allowed")
+        });
+        await tokenInstance.reset({from: accounts[1]}).catch(function (err) {
+            assert.notEqual(err, null, "Non-admin shouldn't be allowed to reset")
+        });
+        await tokenInstance.reset({from: accounts[0]}).catch(function (err) {
+            assert.equal(err, null, "Admin should be allowed to reset")
+        });
+
+        assert.equal(await tokenInstance.today(), 1, "Day should be 1 later after reset");
+        await tokenInstance.getTokens({from: accounts[1]}).catch(function (err) {
+            assert.equal(err, null, "Account should be able to get tokens after reset")
+        });
+
+        b = await tokenInstance.balanceOf(accounts[1]);
+        await assert.equal(b.toNumber(), 400, "Should get another 200 Tokens equaling 400");
+
+    });
+
+    it('Buy hours works as it should', async function () {
+
+        await tokenInstance.reset({from: accounts[0]});
+        await tokenInstance.getTokens({from: accounts[2]}).catch(function (err) {
+            assert.equal(err, null, "Account should be able to get tokens")
+        });
+
+        let normalB = await tokenInstance.balanceOf(accounts[2]);
+        let adminB = await tokenInstance.balanceOf(accounts[0]);
+        await assert.equal(normalB.toNumber(), 200, "Should get 200 Tokens");
+
+        await tokenInstance.buyHours(200, "someOTP", {from: accounts[2]});
+
+        let normalBNew = await tokenInstance.balanceOf(accounts[2]);
+        let adminBNew = await tokenInstance.balanceOf(accounts[0]);
+
+        await assert.equal(normalBNew.toNumber(), normalB.toNumber() - 200,
+            "Should have spent 200 Tokens");
+        await assert.equal(adminBNew.toNumber(), adminB.toNumber() + 200,
+            "Admin should get 200 Tokens");
+
+        await tokenInstance.buyHours(200, {from: accounts[2]}).catch(function (err) {
+            assert.notEqual(err, null,
+                "Account should not be able to spend more tokens than it has")
         });
     });
 
-    it('allocates the initial supply upon deployment', function () {
-        return ControlToken.deployed().then(function (instance) {
-            tokenInstance = instance;
-            return tokenInstance.totalSupply();
-        }).then(function (totalSupply) {
-            assert.equal(totalSupply.toNumber(), 1000000, 'sets the total supply to 1,000,000');
-            return tokenInstance.balanceOf(accounts[0]);
-        }).then(function (adminBalance) {
-            assert.equal(adminBalance.toNumber(), 1000000, 'it allocates the initial supply to the admin account');
+
+    it('Events are fired correctly', async function () {
+        await tokenInstance.reset({from: accounts[0]});
+        await tokenInstance.getTokens({from: accounts[2]}).catch(function (err) {
+            assert.equal(err, null, "Account should be able to get tokens")
         });
+
+        await tokenInstance.getPastEvents("Mint", {fromBlock: "latest"}).then(function (events) {
+            assert.equal(events.length, 1, "Exactly one mint event should be fired")
+            assert.equal(events[0].returnValues._value, 200, "Value should be correct in fired event")
+            assert.equal(events[0].returnValues._receiver, accounts[2], "Receiver should be correct in fired event")
+        })
+
+        await tokenInstance.buyHours(200, "someOTP", {from: accounts[2]});
+
+        await tokenInstance.getPastEvents("Unlock", {fromBlock: "latest"}).then(function (events) {
+            assert.equal(events.length, 1, "Exactly one unlock event should be fired")
+            assert.equal(events[0].returnValues._otp, "someOTP", "Otp should be printed in event")
+            assert.equal(events[0].returnValues._value, 200, "Value should be correct in fired event")
+            assert.equal(events[0].returnValues._from, accounts[2], "Sender should be correct")
+        })
     });
 
-    it('Get Token and reset work as they should', function () {
-        return ControlToken.deployed().then(async function (instance) {
-            let i = instance;
-            await i.getTokens({from: accounts[1]}).catch(function (err) {
-                assert.equal(err, null, "Account should be able to get tokens")
-            });
-
-            let b = await i.balanceOf(accounts[1]);
-            await assert.equal(b.toNumber(), 48, "Should get 48 Tokens");
-
-            await i.getTokens({from: accounts[1]}).catch(function (err) {
-                assert.notEqual(err, null, "Trying to get Tokens twice is not allowed")
-            });
-            await i.reset({from: accounts[1]}).catch(function (err) {
-                assert.notEqual(err, null, "Non-admin shouldn't be allowed to reset")
-            });
-            await i.reset({from: accounts[0]}).catch(function (err) {
-                assert.equal(err, null, "Admin should be allowed to reset")
-            });
-
-            assert.equal(await i.today(),1, "Day should be 1 later after reset");
-            await i.getTokens({from: accounts[1]}).catch(function (err) {
-                assert.equal(err, null, "Account should be able to get tokens after reset")
-            });
-
-            b = await i.balanceOf(accounts[1]);
-            await assert.equal(b.toNumber(), 96, "Should get another 48 Tokens");
-
-        });
-    });
-
-    it('Buy hours works as it should', function () {
-        return ControlToken.deployed().then(async function (instance) {
-            let i = instance;
-
-            await i.reset({from: accounts[0]});
-            await i.getTokens({from: accounts[2]}).catch(function (err) {
-                assert.equal(err, null, "Account should be able to get tokens")
-            });
-
-            let normalB = await i.balanceOf(accounts[2]);
-            let adminB = await i.balanceOf(accounts[0]);
-            await assert.equal(normalB.toNumber(), 48, "Should get 48 Tokens");
-
-            await i.buyHours(48, {from: accounts[2]});
-
-            let normalBNew = await i.balanceOf(accounts[2]);
-            let adminBNew = await i.balanceOf(accounts[0]);
-
-            await assert.equal(normalBNew.toNumber(), normalB.toNumber() - 48,
-                "Should have spent 48 Tokens");
-            await assert.equal(adminBNew.toNumber(), adminB.toNumber() + 48,
-                "Admin should get 48 Tokens");
-
-            await i.buyHours(48, {from: accounts[2]}).catch(function (err) {
-                assert.notEqual(err, null,
-                    "Account should not be able to spend more tokens than it has")
-            });
-        });
-    });
 });
