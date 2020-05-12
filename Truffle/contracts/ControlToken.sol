@@ -90,7 +90,7 @@ contract ControlToken is usingProvable{
 
   }
 
-    // Update the address of store
+    // Update the address of store (WIP)
     function update (address _newVersion) public{
       require(msg.sender == owner, "Relay can only be updated by contract owner");
       latest = _newVersion;
@@ -101,9 +101,8 @@ contract ControlToken is usingProvable{
       require(balanceOf[msg.sender] >= _value,
         "Tokens transferred must be less or equal to account balance");
 
-      // Owner gets tokens to be burned later
+      // Tokens are burned upon unlock
       balanceOf[msg.sender] -= _value;
-      balanceOf[owner] += _value;
 
       emit Unlock(msg.sender, _value, _otp);
       return true;
