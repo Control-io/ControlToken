@@ -1,5 +1,8 @@
 pragma solidity ^0.5.16;
-contract ControlToken{
+
+import "github.com/oraclize/ethereum-api/provableAPI.sol";
+
+contract ControlToken is usingProvable{
   string public name = "ControlToken";
   string public symbol = "CONT";
   string public standard = "Control Token v1.0";
@@ -49,6 +52,7 @@ contract ControlToken{
     // No limit of supply
     totalSupply = 0;
     today = 0;
+    startTimer();
   }
 
   /* Boilerplate ERC20 (transfer, approve, transferFrom) */
@@ -86,7 +90,7 @@ contract ControlToken{
 
   }
 
-    // Update the address of store
+    // Update the address of store (WIP)
     function update (address _newVersion) public{
       require(msg.sender == owner, "Relay can only be updated by contract owner");
       latest = _newVersion;
@@ -97,9 +101,8 @@ contract ControlToken{
       require(balanceOf[msg.sender] >= _value,
         "Tokens transferred must be less or equal to account balance");
 
-      // Owner gets tokens to be burned later
+      // Tokens are burned upon unlock
       balanceOf[msg.sender] -= _value;
-      balanceOf[owner] += _value;
 
       emit Unlock(msg.sender, _value, _otp);
       return true;
@@ -115,11 +118,14 @@ contract ControlToken{
       return true;
     }
 
-    // Reset who got tokens already, to be called once a day
-    function reset() public returns (bool success){
-      require(msg.sender == owner, "Reset can only be called by contract owner");
-      today++;
-      return true;
+    function startTimer() internal{
+        provable_query(1*day, "URL", "");
+    }
+
+    function __callback(bytes32 myid, string memory result) public {
+        require(msg.sender == provable_cbAddress(), "This function is only meant to be used as a callback from a one day query to reset the daily tokens");
+        today++;
+        startTimer();
     }
 
 }
