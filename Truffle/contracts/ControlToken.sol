@@ -40,7 +40,7 @@ contract ControlToken{
   // When has someone last received their tokens
   mapping(address =>  uint256) private received;
 
-  constructor() public payable{
+  constructor() public{
     latest = 0x0000000000000000000000000000000000000000;
     owner = msg.sender;
     // No limit of supply
