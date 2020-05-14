@@ -1,8 +1,6 @@
 pragma solidity ^0.5.16;
 
-import "github.com/oraclize/ethereum-api/provableAPI.sol";
-
-contract ControlToken is usingProvable{
+contract ControlToken{
   string public name = "ControlToken";
   string public symbol = "CONT";
   string public standard = "Control Token v1.0";
@@ -11,8 +9,6 @@ contract ControlToken is usingProvable{
   address public latest;
   // Owner address of the contract
   address public owner;
-  // Mapping we're on today to track who already got tokens for the day
-  uint256 public today;
 
   event Transfer(
     address indexed _from,
@@ -39,20 +35,16 @@ contract ControlToken is usingProvable{
     uint256 _value
     );
 
-
-
   mapping(address => uint256) public balanceOf;
   mapping(address => mapping(address => uint256)) public allowance;
-  // Who has received their tokens for the day
-  mapping(uint256 => mapping(address => bool)) private received;
+  // When has someone last received their tokens
+  mapping(address =>  uint256) private received;
 
-  constructor() public {
+  constructor() public{
     latest = 0x0000000000000000000000000000000000000000;
     owner = msg.sender;
     // No limit of supply
     totalSupply = 0;
-    today = 0;
-    startTimer();
   }
 
   /* Boilerplate ERC20 (transfer, approve, transferFrom) */
@@ -110,22 +102,14 @@ contract ControlToken is usingProvable{
 
     // Get today's tokens, 200 tokens per day per user
     function getTokens() public returns (bool success){
-      require(!received[today][msg.sender],
-         "You can only get tokens once per day");
-      balanceOf[msg.sender] += 200;
-      received[today][msg.sender] = true;
-      emit Mint(msg.sender,200);
-      return true;
-    }
+      if(received[msg.sender] + 86400 <= now){
+        balanceOf[msg.sender] += 200;
+        received[msg.sender] = now;
+        emit Mint(msg.sender,200);
+        return true;
+      }
 
-    function startTimer() internal{
-        provable_query(1*day, "URL", "");
-    }
-
-    function __callback(bytes32 myid, string memory result) public {
-        require(msg.sender == provable_cbAddress(), "This function is only meant to be used as a callback from a one day query to reset the daily tokens");
-        today++;
-        startTimer();
+      revert("You can only get tokens once per day");
     }
 
 }
